@@ -9,15 +9,7 @@ from accounts.models import CustomUser
 def create_user_and_compensation_for_employee(sender, instance, created, **kwargs):
     if created:
         if not instance.user_id:
-            username = instance.official_email.split("@")[0]
-            base_username = username
-            counter = 1
-            while CustomUser.objects.filter(username=username).exists():
-                username = f"{base_username}{counter}"
-                counter += 1
-
             user = CustomUser.objects.create_user(
-                username=username,
                 email=instance.official_email,
                 password=instance.official_email,
             )
