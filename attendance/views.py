@@ -49,7 +49,7 @@ def process_midnight_splits(employee):
         open_att.save()
         
         if time_since_start.total_seconds() > 16 * 3600:
-            # Shift exceeded 16 hours. They forgot to check out. Abandon rollover.
+
             break
 
         next_date = open_att.date + datetime.timedelta(days=1)
@@ -68,7 +68,7 @@ def backfill_absent_days(employee, start_date, end_date):
     join = employee.join_date or employee.created_at.date()
     start = max(start_date, join)
     
-    # Never mark today or the future as absent
+
     today = timezone.localdate()
     end = min(end_date, today - datetime.timedelta(days=1))
     
@@ -125,7 +125,7 @@ class CheckInView(APIView):
             serializer.is_valid(raise_exception=True)
 
             if existing.check_out_time:
-                # Resuming shift
+
                 gap_delta = timezone.now() - existing.check_out_time
                 gap_mins = int(gap_delta.total_seconds() / 60)
                 
@@ -154,12 +154,7 @@ class CheckInView(APIView):
         serializer.is_valid(raise_exception=True)
 
         now = timezone.now()
-        local_now = timezone.localtime(now)
-        late_threshold = local_now.replace(hour=9, minute=15, second=0, microsecond=0)
-        
         status_val = serializer.validated_data.get("status", "Present")
-        if local_now > late_threshold and status_val == "Present":
-            status_val = "Late"
 
         if existing:
             existing.check_in_time = now
@@ -214,11 +209,6 @@ class CheckOutView(APIView):
             )
 
         attendance.check_out_time = timezone.now()
-        
-        # Auto-set Half Day status if worked < 4 hours and currently marked as Present/Late
-        if attendance.hours_worked < 4.0 and attendance.status in ["Present", "Late"]:
-            attendance.status = "Half leave"
-            
         attendance.save()
 
         return Response(AttendanceTodaySerializer(attendance).data)
@@ -544,7 +534,7 @@ class EmployeeDashboardStatsView(APIView):
         process_midnight_splits(employee)
         today = timezone.localdate()
         
-        # Monthly Stats (Current Month)
+
         first_day = today.replace(day=1)
         month_records = Attendance.objects.filter(
             employee=employee, 
@@ -560,20 +550,20 @@ class EmployeeDashboardStatsView(APIView):
         if present_count > 0:
             avg_hours = total_hours / present_count
 
-        # Recent Attendance (Last 5 records with human labels)
+
         recent_records = Attendance.objects.filter(
             employee=employee, 
             date__lte=today
         ).order_by("-date")[:5]
         
-        # Add labels like 'Today' or 'Yesterday' for the UI
+
         recent_data = AttendanceHistorySerializer(recent_records, many=True).data
         for r in recent_data:
             if r["date"] == str(today): r["label"] = "Today"
             elif r["date"] == str(today - datetime.timedelta(days=1)): r["label"] = "Yesterday"
             else: r["label"] = r["day_of_week"]
         
-        # Today's Status
+
         today_att = month_records.filter(date=today).first()
         today_data = None
         if today_att:

@@ -9,8 +9,8 @@ class Attendance(models.Model):
     STATUS_CHOICES = [
         ("Present", "Present"),
         ("Absent", "Absent"),
+        ("On Leave", "On Leave"),
         ("remote", "Remote"),
-        ("Half leave", "Half Leave"),
         ("Medical leave", "Medical Leave"),
         ("Emergency", "Emergency"),
     ]
