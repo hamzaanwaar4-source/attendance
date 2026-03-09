@@ -717,6 +717,42 @@
                         }
                     },
                     "response": []
+                },
+                {
+                    "name": "Update Profile Picture",
+                    "request": {
+                        "method": "POST",
+                        "header": [
+                            {
+                                "key": "Content-Type",
+                                "value": "multipart/form-data",
+                                "type": "text",
+                                "disabled": true
+                            }
+                        ],
+                        "body": {
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "profile_picture",
+                                    "type": "file",
+                                    "src": "/path/to/your/image.jpg"
+                                }
+                            ]
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/employees/profile-picture/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "employees",
+                                "profile-picture",
+                                ""
+                            ]
+                        },
+                        "description": "Upload a new profile picture for the logged-in employee."
+                    }
                 }
             ]
         },
