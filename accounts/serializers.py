@@ -28,6 +28,18 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             )
 
         data = super().validate(attrs)
+        
+        user = self.user
+        if hasattr(user, "employee"):
+            role = user.employee.role
+            admin_roles = ["CEO", "CTO", "COO", "Director", "HOD", "PM"]
+            if user.is_superuser or role in admin_roles:
+                data["role"] = "Admin"
+            else:
+                data["role"] = "Employee"
+        elif user.is_superuser:
+            data["role"] = "Admin"
+            
         return data
 
     @classmethod
