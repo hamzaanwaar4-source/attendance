@@ -560,11 +560,18 @@ class EmployeeDashboardStatsView(APIView):
         if present_count > 0:
             avg_hours = total_hours / present_count
 
-        # Recent Attendance (Last 5 records)
+        # Recent Attendance (Last 5 records with human labels)
         recent_records = Attendance.objects.filter(
             employee=employee, 
             date__lte=today
         ).order_by("-date")[:5]
+        
+        # Add labels like 'Today' or 'Yesterday' for the UI
+        recent_data = AttendanceHistorySerializer(recent_records, many=True).data
+        for r in recent_data:
+            if r["date"] == str(today): r["label"] = "Today"
+            elif r["date"] == str(today - datetime.timedelta(days=1)): r["label"] = "Yesterday"
+            else: r["label"] = r["day_of_week"]
         
         # Today's Status
         today_att = month_records.filter(date=today).first()
@@ -587,12 +594,13 @@ class EmployeeDashboardStatsView(APIView):
                 "profile_picture": request.build_absolute_uri(employee.profile_picture.url) if employee.profile_picture else None
             },
             "stats": {
+                "month": today.strftime("%B %Y"),
                 "days_this_month": present_count,
                 "hours_worked": f"{round(total_hours, 1)}h",
                 "total_breaks": total_breaks,
                 "avg_hours_per_day": f"{round(avg_hours, 1)}h"
             },
             "today": today_data,
-            "recent_attendance": AttendanceHistorySerializer(recent_records, many=True).data
+            "recent_attendance": recent_data
         }
         return Response(data)
