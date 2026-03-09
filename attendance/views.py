@@ -29,7 +29,11 @@ class AttendanceHistoryPagination(CursorPagination):
     ordering = "-date"
 
 def process_midnight_splits(employee):
-    open_att = Attendance.objects.filter(employee=employee, check_out_time__isnull=True).order_by('date').first()
+    open_att = Attendance.objects.filter(
+        employee=employee, 
+        check_in_time__isnull=False, 
+        check_out_time__isnull=True
+    ).order_by('date').first()
     if not open_att:
         return
 
