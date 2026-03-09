@@ -113,16 +113,8 @@ class TodayAttendanceView(APIView):
         attendance = Attendance.objects.filter(employee=employee, date=today).first()
 
         if not attendance:
-            return Response({
-                "checked_in": False,
-                "date": str(today),
-                "check_in_time": None,
-                "check_out_time": None,
-                "break_minutes": 0,
-                "break_count": 0,
-                "hours_worked": 0.0,
-                "status": "Not checked in",
-            })
+            data = {"checked_in": False, "date": str(today), "check_in_time": None, "check_out_time": None, "break_minutes": 0, "break_count": 0, "hours_worked": 0.0, "status": "Not checked in"}
+            return Response(data)
 
         data = AttendanceTodaySerializer(attendance).data
         data["checked_in"] = attendance.check_in_time is not None
@@ -202,7 +194,7 @@ class MonthlyAttendanceView(APIView):
         required_hours = working_days_in_period * 8
         remaining_hours = max(required_hours - total_hours, 0)
 
-        return Response({
+        data = {
             "period_days": days,
             "start_date": str(start_date),
             "end_date": str(today),
@@ -212,7 +204,8 @@ class MonthlyAttendanceView(APIView):
             "remaining_hours": f"{round(remaining_hours, 1)}h",
             "total_breaks": aggregates["total_break_minutes"] or 0,
             "records": history_data,
-        })
+        }
+        return Response(data)
 
     def _count_working_days(self, start, end):
         count = 0
@@ -263,7 +256,7 @@ class EmployeeAttendanceHistoryView(APIView):
         total_breaks = records.aggregate(total=Sum("break_minutes"))["total"] or 0
         avg_hours = round(total_hours / records.count(), 1) if records.count() else 0.0
 
-        return Response({
+        data = {
             "employee_id": str(target_employee.id),
             "employee_name": target_employee.full_name,
             "period_days": days,
@@ -272,7 +265,8 @@ class EmployeeAttendanceHistoryView(APIView):
             "total_breaks": total_breaks,
             "avg_hours_per_day": f"{avg_hours}h",
             "records": history_data,
-        })
+        }
+        return Response(data)
 
 
 class LeaveRequestListCreateView(generics.ListCreateAPIView):

@@ -1,14 +1,16 @@
-from django.db.models import Q
-from rest_framework import viewsets, status, generics
-from rest_framework.decorators import action
+from collections import deque
+
+from django.db.models import Q, Count
+from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from rest_framework import status, generics
+from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
-from attendance.models import Attendance
-from django.utils import timezone
-from attendance.models import LeaveRequest
-from django.db.models import Count
+
 from accounts.permissions import IsAdminOrHOD, IsOwnerOrSuperior, CanViewCompensation
+from attendance.models import Attendance, LeaveRequest
 from employees.models import Employee, Compensation, DisciplinaryRecord, Department, Batch
 from employees.serializers import (
     EmployeeListSerializer,
@@ -24,99 +26,203 @@ from employees.serializers import (
 )
 
 
-class DepartmentViewSet(viewsets.ModelViewSet):
-    queryset = Department.objects.all()
-    serializer_class = DepartmentSerializer
 
-    def get_permissions(self):
-        if self.action in ["create", "update", "partial_update", "destroy"]:
-            return [IsAuthenticated(), IsAdminOrHOD()]
-        return [IsAuthenticated()]
+class StandardPagination(CursorPagination):
+    page_size = 10
+    page_size_query_param = "page_size"
+    max_page_size = 100
+    ordering = "-created_at"
 
 
-class BatchViewSet(viewsets.ModelViewSet):
-    queryset = Batch.objects.all()
-    serializer_class = BatchSerializer
+class DepartmentListView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    def get_permissions(self):
-        if self.action in ["create", "update", "partial_update", "destroy"]:
-            return [IsAuthenticated(), IsAdminOrHOD()]
-        return [IsAuthenticated()]
+    def get(self, request):
+        departments = Department.objects.all()
+        serializer = DepartmentSerializer(departments, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        self.check_permissions(request)
+        IsAdminOrHOD().has_permission(request, self)
+        serializer = DepartmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
 
-class EmployeeViewSet(viewsets.ModelViewSet):
-    queryset = Employee.objects.select_related("department", "batch", "reports_to").all()
+class DepartmentDetailView(APIView):
+    permission_classes = [IsAuthenticated]
 
-    def get_serializer_class(self):
-        if self.action == "create":
-            return EmployeeCreateSerializer
-        if self.action == "list":
-            return EmployeeListSerializer
-        if self.action in ["update", "partial_update"]:
-            return EmployeeUpdateSerializer
-        return EmployeeDetailSerializer
+    def get_target(self, pk):
+        return get_object_or_404(Department, pk=pk)
 
-    def get_permissions(self):
-        if self.action == "create":
-            return [IsAuthenticated(), IsAdminOrHOD()]
-        if self.action in ["update", "partial_update", "destroy"]:
-            return [IsAuthenticated(), IsAdminOrHOD()]
-        return [IsAuthenticated()]
+    def get(self, request, pk):
+        department = self.get_target(pk)
+        serializer = DepartmentSerializer(department)
+        return Response(serializer.data)
 
-    def get_queryset(self):
-        queryset = self.queryset
-        user = self.request.user
+    def put(self, request, pk):
+        IsAdminOrHOD().has_permission(request, self)
+        department = self.get_target(pk)
+        serializer = DepartmentSerializer(department, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
 
-        search = self.request.query_params.get("search", "")
+    def delete(self, request, pk):
+        IsAdminOrHOD().has_permission(request, self)
+        department = self.get_target(pk)
+        department.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class BatchListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        batches = Batch.objects.all()
+        serializer = BatchSerializer(batches, many=True)
+        return Response(serializer.data)
+
+    def post(self, request):
+        IsAdminOrHOD().has_permission(request, self)
+        serializer = BatchSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class BatchDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_target(self, pk):
+        return get_object_or_404(Batch, pk=pk)
+
+    def get(self, request, pk):
+        batch = self.get_target(pk)
+        serializer = BatchSerializer(batch)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        IsAdminOrHOD().has_permission(request, self)
+        batch = self.get_target(pk)
+        serializer = BatchSerializer(batch, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, pk):
+        IsAdminOrHOD().has_permission(request, self)
+        batch = self.get_target(pk)
+        batch.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class EmployeeListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def apply_filters(self, queryset, params):
+        search = params.get("search", "")
         if search:
             queryset = queryset.filter(
-                Q(full_name__icontains=search) |
-                Q(official_email__icontains=search) |
-                Q(id__icontains=search)
+                Q(full_name__icontains=search)
+                | Q(official_email__icontains=search)
+                | Q(id__icontains=search)
             )
 
-        status_filter = self.request.query_params.get("status", "")
+        status_filter = params.get("status", "")
         if status_filter and status_filter != "All":
             queryset = queryset.filter(employment_status=status_filter)
 
-        role_filter = self.request.query_params.get("role", "")
+        role_filter = params.get("role", "")
         if role_filter and role_filter != "All":
             queryset = queryset.filter(role=role_filter)
 
-        department_filter = self.request.query_params.get("department", "")
+        department_filter = params.get("department", "")
         if department_filter:
             queryset = queryset.filter(department_id=department_filter)
 
-        if not user.is_superuser and hasattr(user, "employee"):
-            employee = user.employee
-            if employee.role in ("CEO", "CTO", "COO", "Director", "HOD"):
-                return queryset
-            if employee.role == "PM":
-                subordinate_ids = self._get_all_subordinate_ids(employee)
-                subordinate_ids.add(employee.id)
-                return queryset.filter(id__in=subordinate_ids)
-            return queryset.filter(id=employee.id)
-
         return queryset
 
-    def _get_all_subordinate_ids(self, manager):
-        result = set()
-        queue = [manager]
-        while queue:
-            current = queue.pop(0)
-            direct = Employee.objects.filter(reports_to=current)
-            for emp in direct:
-                if emp.id not in result:
-                    result.add(emp.id)
-                    queue.append(emp)
-        return result
+    def scope_by_role(self, queryset, user):
+        if user.is_superuser:
+            return queryset
 
-    def perform_create(self, serializer):
-        password = serializer.validated_data.pop("password", None)
-        employee = serializer.save()
-        if password:
-            employee.user.set_password(password)
-            employee.user.save()
+        if not hasattr(user, "employee"):
+            return queryset.none()
+
+        employee = user.employee
+        if employee.role in ("CEO", "CTO", "COO", "Director", "HOD"):
+            return queryset
+
+        if employee.role == "PM":
+            visible_ids = set()
+            queue = deque([employee])
+            while queue:
+                current = queue.popleft()
+                for emp in Employee.objects.filter(reports_to=current).only("id"):
+                    if emp.id not in visible_ids:
+                        visible_ids.add(emp.id)
+                        queue.append(emp)
+            visible_ids.add(employee.id)
+            return queryset.filter(id__in=visible_ids)
+
+        return queryset.filter(id=employee.id)
+
+    def get(self, request):
+        queryset = Employee.objects.select_related("department", "batch", "reports_to").all()
+        queryset = self.apply_filters(queryset, request.query_params)
+        queryset = self.scope_by_role(queryset, request.user)
+
+        paginator = StandardPagination()
+        page = paginator.paginate_queryset(queryset, request)
+        serializer = EmployeeListSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    def post(self, request):
+        IsAdminOrHOD().has_permission(request, self)
+        serializer = EmployeeCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class EmployeeDetailView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get_target(self, pk):
+        return get_object_or_404(
+            Employee.objects.select_related("department", "batch", "reports_to"),
+            pk=pk,
+        )
+
+    def get(self, request, pk):
+        employee = self.get_target(pk)
+        serializer = EmployeeDetailSerializer(employee)
+        return Response(serializer.data)
+
+    def put(self, request, pk):
+        IsAdminOrHOD().has_permission(request, self)
+        employee = self.get_target(pk)
+        serializer = EmployeeUpdateSerializer(employee, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def patch(self, request, pk):
+        IsAdminOrHOD().has_permission(request, self)
+        employee = self.get_target(pk)
+        serializer = EmployeeUpdateSerializer(employee, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, pk):
+        IsAdminOrHOD().has_permission(request, self)
+        employee = self.get_target(pk)
+        employee.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class EmployeeProfileView(generics.RetrieveUpdateAPIView):
@@ -134,18 +240,50 @@ class CompensationView(generics.RetrieveUpdateAPIView):
     lookup_url_kwarg = "employee_pk"
 
 
-class DisciplinaryRecordViewSet(viewsets.ModelViewSet):
-    serializer_class = DisciplinaryRecordSerializer
+class DisciplinaryRecordListView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrHOD]
 
-    def get_queryset(self):
-        employee_pk = self.kwargs.get("employee_pk")
-        return DisciplinaryRecord.objects.filter(employee_id=employee_pk).select_related("employee")
+    def get(self, request, employee_pk):
+        records = DisciplinaryRecord.objects.filter(
+            employee_id=employee_pk
+        ).select_related("employee")
+        serializer = DisciplinaryRecordSerializer(records, many=True)
+        return Response(serializer.data)
 
-    def perform_create(self, serializer):
-        employee_pk = self.kwargs.get("employee_pk")
-        employee = Employee.objects.get(pk=employee_pk)
+    def post(self, request, employee_pk):
+        employee = get_object_or_404(Employee, pk=employee_pk)
+        serializer = DisciplinaryRecordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
         serializer.save(employee=employee)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+
+class DisciplinaryRecordDetailView(APIView):
+    permission_classes = [IsAuthenticated, IsAdminOrHOD]
+
+    def get_target(self, employee_pk, pk):
+        return get_object_or_404(
+            DisciplinaryRecord.objects.select_related("employee"),
+            employee_id=employee_pk,
+            pk=pk,
+        )
+
+    def get(self, request, employee_pk, pk):
+        record = self.get_target(employee_pk, pk)
+        serializer = DisciplinaryRecordSerializer(record)
+        return Response(serializer.data)
+
+    def put(self, request, employee_pk, pk):
+        record = self.get_target(employee_pk, pk)
+        serializer = DisciplinaryRecordSerializer(record, data=request.data)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)
+
+    def delete(self, request, employee_pk, pk):
+        record = self.get_target(employee_pk, pk)
+        record.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class OrgChartView(generics.ListAPIView):
@@ -161,7 +299,6 @@ class AdminDashboardStatsView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrHOD]
 
     def get(self, request):
-
         today = timezone.localdate()
         total_employees = Employee.active_employees.count()
         today_attendance = Attendance.objects.filter(date=today)
@@ -174,7 +311,9 @@ class AdminDashboardStatsView(APIView):
         ).count()
         wfh_count = today_attendance.filter(status="remote").count()
 
-        present_percentage = round((present_count / total_employees * 100), 1) if total_employees else 0
+        present_percentage = (
+            round((present_count / total_employees * 100), 1) if total_employees else 0
+        )
 
         status_counts = {
             "Active": Employee.objects.filter(employment_status="Active").count(),
@@ -189,15 +328,16 @@ class AdminDashboardStatsView(APIView):
             ).count()
 
         role_distribution = {}
-        for role_choice in Employee.ROLE_CHOICES:
-            count = Employee.active_employees.filter(role=role_choice[0]).count()
+        for role_code, _ in Employee.ROLE_CHOICES:
+            count = Employee.active_employees.filter(role=role_code).count()
             if count > 0:
-                role_distribution[role_choice[0]] = count
+                role_distribution[role_code] = count
 
-        recent_employees = Employee.objects.order_by("-created_at")[:5]
-        recent_data = EmployeeListSerializer(recent_employees, many=True).data
+        recent_data = EmployeeListSerializer(
+            Employee.objects.order_by("-created_at")[:5], many=True
+        ).data
 
-        return Response({
+        data = {
             "total_employees": total_employees,
             "present": present_count,
             "present_percentage": present_percentage,
@@ -208,24 +348,26 @@ class AdminDashboardStatsView(APIView):
             "department_distribution": department_distribution,
             "role_distribution": role_distribution,
             "recent_employees": recent_data,
-        })
+        }
+        return Response(data)
 
 
 class TeamStatsView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request):
-
         if not hasattr(request.user, "employee"):
-            return Response({"detail": "No employee profile linked."}, status=400)
+            return Response(
+                {"detail": "No employee profile linked."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         manager = request.user.employee
         subordinate_ids = set()
-        queue = [manager]
+        queue = deque([manager])
         while queue:
-            current = queue.pop(0)
-            direct = Employee.objects.filter(reports_to=current)
-            for emp in direct:
+            current = queue.popleft()
+            for emp in Employee.objects.filter(reports_to=current).only("id"):
                 if emp.id not in subordinate_ids:
                     subordinate_ids.add(emp.id)
                     queue.append(emp)
@@ -238,23 +380,23 @@ class TeamStatsView(APIView):
             status__in=["Present", "remote"],
         ).count()
 
-        team_members = Employee.objects.filter(id__in=subordinate_ids).values(
+        team_members = list(Employee.objects.filter(id__in=subordinate_ids).values(
             "id", "full_name", "role", "job_title", "employment_status"
-        )
+        ))
 
-        return Response({
+        data = {
             "team_size": team_size,
             "present_today": today_present,
             "absent_today": team_size - today_present,
-            "team_members": list(team_members),
-        })
+            "team_members": team_members,
+        }
+        return Response(data)
 
 
 class AttendanceSummaryStatsView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrHOD]
 
     def get(self, request):
-
         today = timezone.localdate()
         period = request.query_params.get("period", "7")
         try:
@@ -274,19 +416,14 @@ class AttendanceSummaryStatsView(APIView):
             .order_by("date")
         )
 
-        return Response({
-            "period_days": days,
-            "start_date": str(start_date),
-            "end_date": str(today),
-            "daily_summary": list(daily_summary),
-        })
+        data = {"period_days": days, "start_date": str(start_date), "end_date": str(today), "daily_summary": list(daily_summary)}
+        return Response(data)
 
 
 class LeaveSummaryStatsView(APIView):
     permission_classes = [IsAuthenticated, IsAdminOrHOD]
 
     def get(self, request):
-
         pending_count = LeaveRequest.objects.filter(status="Pending").count()
         approved_count = LeaveRequest.objects.filter(status="Approved").count()
 
@@ -296,8 +433,5 @@ class LeaveSummaryStatsView(APIView):
             .order_by("leave_type")
         )
 
-        return Response({
-            "pending": pending_count,
-            "approved": approved_count,
-            "by_type": list(by_type),
-        })
+        data = {"pending": pending_count, "approved": approved_count, "by_type": list(by_type)}
+        return Response(data)

@@ -1,13 +1,16 @@
-from django.urls import path, include
-from rest_framework.routers import DefaultRouter
+from django.urls import path
 
 from employees.views import (
-    EmployeeViewSet,
+    EmployeeListView,
+    EmployeeDetailView,
     EmployeeProfileView,
     CompensationView,
-    DisciplinaryRecordViewSet,
-    DepartmentViewSet,
-    BatchViewSet,
+    DisciplinaryRecordListView,
+    DisciplinaryRecordDetailView,
+    DepartmentListView,
+    DepartmentDetailView,
+    BatchListView,
+    BatchDetailView,
     OrgChartView,
     AdminDashboardStatsView,
     TeamStatsView,
@@ -15,17 +18,20 @@ from employees.views import (
     LeaveSummaryStatsView,
 )
 
-router = DefaultRouter()
-router.register(r"employees", EmployeeViewSet, basename="employee")
-router.register(r"departments", DepartmentViewSet, basename="department")
-router.register(r"batches", BatchViewSet, basename="batch")
-
 urlpatterns = [
-    path("", include(router.urls)),
-    path("employees/<uuid:pk>/profile/", EmployeeProfileView.as_view(), name="employee-profile",),
-    path("employees/<uuid:employee_pk>/compensation/", CompensationView.as_view(), name="employee-compensation",),
-    path("employees/<uuid:employee_pk>/disciplinary/", DisciplinaryRecordViewSet.as_view({"get": "list", "post": "create"}), name="employee-disciplinary-list",),
-    path("employees/<uuid:employee_pk>/disciplinary/<uuid:pk>/", DisciplinaryRecordViewSet.as_view({"get": "retrieve", "put": "update", "delete": "destroy"}),name="employee-disciplinary-detail",),
+    path("departments/", DepartmentListView.as_view(), name="department-list"),
+    path("departments/<uuid:pk>/", DepartmentDetailView.as_view(), name="department-detail"),
+
+    path("batches/", BatchListView.as_view(), name="batch-list"),
+    path("batches/<uuid:pk>/", BatchDetailView.as_view(), name="batch-detail"),
+
+    path("employees/", EmployeeListView.as_view(), name="employee-list"),
+    path("employees/<uuid:pk>/", EmployeeDetailView.as_view(), name="employee-detail"),
+    path("employees/<uuid:pk>/profile/", EmployeeProfileView.as_view(), name="employee-profile"),
+    path("employees/<uuid:employee_pk>/compensation/", CompensationView.as_view(), name="employee-compensation"),
+    path("employees/<uuid:employee_pk>/disciplinary/", DisciplinaryRecordListView.as_view(), name="employee-disciplinary-list"),
+    path("employees/<uuid:employee_pk>/disciplinary/<uuid:pk>/", DisciplinaryRecordDetailView.as_view(), name="employee-disciplinary-detail"),
+
     path("org-chart/", OrgChartView.as_view(), name="org-chart"),
     path("stats/dashboard/", AdminDashboardStatsView.as_view(), name="stats-dashboard"),
     path("stats/team/", TeamStatsView.as_view(), name="stats-team"),

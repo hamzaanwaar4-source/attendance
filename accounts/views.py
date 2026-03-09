@@ -35,11 +35,7 @@ class CurrentUserView(APIView):
 
     def get(self, request):
         user = request.user
-        data = {
-            "id": user.id,
-            "email": user.email,
-            "is_superuser": user.is_superuser,
-        }
+        data = {"id": user.id, "email": user.email, "is_superuser": user.is_superuser}
         if hasattr(user, "employee"):
             emp = user.employee
             data.update({

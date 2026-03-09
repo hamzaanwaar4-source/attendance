@@ -523,6 +523,200 @@
             }
           },
           "response": []
+        },
+        {
+          "name": "Add Employee and Auto-Login Test",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Employee created with status 201', function () {",
+                  "    pm.response.to.have.status(201);",
+                  "});",
+                  "pm.test('Response contains official_email', function () {",
+                  "    pm.expect(jsonData.official_email).to.eql('postman.test@attendox.com');",
+                  "});",
+                  "if (jsonData.id) {",
+                  "    pm.collectionVariables.set('test_employee_id', jsonData.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"official_email\": \"postman.test@attendox.com\",\n    \"password\": \"TestPassword2026\",\n    \"full_name\": \"Postman Test User\",\n    \"role\": \"Employee\",\n    \"job_title\": \"QA Engineer\",\n    \"employment_status\": \"Active\",\n    \"join_date\": \"2026-03-09\",\n    \"gender\": \"Male\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/employees/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "employees",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login as New Employee (Correct Password)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Login successful with status 200', function () {",
+                  "    pm.response.to.have.status(200);",
+                  "});",
+                  "pm.test('JWT access token received', function () {",
+                  "    pm.expect(jsonData.access).to.be.a('string');",
+                  "});",
+                  "pm.test('JWT refresh token received', function () {",
+                  "    pm.expect(jsonData.refresh).to.be.a('string');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"postman.test@attendox.com\",\n    \"password\": \"TestPassword2026\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/token/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "token",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login as New Employee (Wrong Password)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Rejected with status 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Returns invalid password message', function () {",
+                  "    pm.expect(jsonData.detail[0]).to.include('Invalid password');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"postman.test@attendox.com\",\n    \"password\": \"WrongPassword999\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/token/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "token",
+                ""
+              ]
+            }
+          },
+          "response": []
+        },
+        {
+          "name": "Login with Non-Existent Email",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "var jsonData = pm.response.json();",
+                  "pm.test('Rejected with status 400', function () {",
+                  "    pm.response.to.have.status(400);",
+                  "});",
+                  "pm.test('Returns no account found message', function () {",
+                  "    pm.expect(jsonData.detail[0]).to.include('No account found');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"email\": \"ghost@nowhere.com\",\n    \"password\": \"anything\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/auth/token/",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "auth",
+                "token",
+                ""
+              ]
+            }
+          },
+          "response": []
         }
       ]
     },

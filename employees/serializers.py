@@ -1,4 +1,6 @@
 from rest_framework import serializers
+from django.db import transaction
+from django.contrib.auth import get_user_model
 
 from employees.models import Employee, Compensation, DisciplinaryRecord, Department, Batch
 
@@ -37,7 +39,7 @@ class EmployeeListSerializer(serializers.ModelSerializer):
 
 
 class EmployeeCreateSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, required=False)
+    password = serializers.CharField(write_only=True, required=True)
 
     class Meta:
         model = Employee
@@ -55,9 +57,27 @@ class EmployeeCreateSerializer(serializers.ModelSerializer):
         ]
 
     def validate_official_email(self, value):
-        if Employee.objects.filter(official_email=value).exists():
-            raise serializers.ValidationError("An employee with this email already exists.")
+        User = get_user_model()
+        if Employee.objects.filter(official_email=value).exists() or User.objects.filter(email=value).exists():
+            raise serializers.ValidationError("An account with this email already exists.")
         return value
+
+    @transaction.atomic
+    def create(self, validated_data):
+        User = get_user_model()
+        password = validated_data.pop("password", None)
+        official_email = validated_data.get("official_email")
+
+        user = User.objects.create_user(
+            email=official_email,
+            password=password,
+        )
+        validated_data["user"] = user
+
+        employee = super().create(validated_data)
+
+        Compensation.objects.get_or_create(employee=employee)
+        return employee
 
 
 class EmployeeDetailSerializer(serializers.ModelSerializer):
