@@ -25,6 +25,7 @@ class Attendance(models.Model):
     break_start_time = models.DateTimeField(null=True, blank=True)
     break_minutes = models.PositiveIntegerField(default=0)
     break_count = models.PositiveIntegerField(default=0)
+    accumulated_gross_minutes = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="Present")
 
     class Meta:
@@ -37,18 +38,21 @@ class Attendance(models.Model):
 
     @property
     def hours_worked(self):
-        if not self.check_in_time:
+        if not self.check_in_time and self.accumulated_gross_minutes == 0:
             return 0.0
         
-        end_time = self.check_out_time or timezone.now()
-        delta = end_time - self.check_in_time
-        total_minutes = delta.total_seconds() / 60
+        gross_minutes = self.accumulated_gross_minutes
         
+        if self.check_in_time:
+            end_time = self.check_out_time or timezone.now()
+            delta = end_time - self.check_in_time
+            gross_minutes += delta.total_seconds() / 60
+            
         current_break_mins = 0
         if self.break_start_time and not self.check_out_time:
             current_break_mins = (timezone.now() - self.break_start_time).total_seconds() / 60
             
-        net_minutes = max(total_minutes - self.break_minutes - current_break_mins, 0)
+        net_minutes = max(gross_minutes - self.break_minutes - current_break_mins, 0)
         return round(net_minutes / 60, 1)
 
 

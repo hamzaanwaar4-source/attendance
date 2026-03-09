@@ -20,8 +20,42 @@ from attendance.serializers import (
     LeaveBalanceSerializer,
     AdminAttendanceOverviewSerializer,
 )
+import datetime
 from employees.models import Employee
 
+def process_midnight_splits(employee):
+    open_att = Attendance.objects.filter(employee=employee, check_out_time__isnull=True).order_by('date').first()
+    if not open_att:
+        return
+
+    today = timezone.localdate()
+    while open_att.date < today:
+        time_since_start = timezone.now() - open_att.check_in_time
+        
+        end_of_day = timezone.make_aware(datetime.datetime.combine(open_att.date, datetime.time(23, 59, 59)))
+        
+        if open_att.break_start_time:
+            if open_att.break_start_time < end_of_day:
+                break_delta = end_of_day - open_att.break_start_time
+                open_att.break_minutes += int(break_delta.total_seconds() / 60)
+            open_att.break_start_time = None
+            
+        open_att.check_out_time = end_of_day
+        open_att.save()
+        
+        if time_since_start.total_seconds() > 16 * 3600:
+            # Shift exceeded 16 hours. They forgot to check out. Abandon rollover.
+            break
+
+        next_date = open_att.date + datetime.timedelta(days=1)
+        next_day_start = timezone.make_aware(datetime.datetime.combine(next_date, datetime.time(0, 0, 0)))
+        
+        open_att = Attendance.objects.create(
+            employee=employee,
+            date=next_date,
+            check_in_time=next_day_start,
+            status=open_att.status
+        )
 
 class CheckInView(APIView):
     permission_classes = [IsAuthenticated]
@@ -34,6 +68,7 @@ class CheckInView(APIView):
             )
 
         employee = request.user.employee
+        process_midnight_splits(employee)
         today = timezone.localdate()
 
         existing = Attendance.objects.filter(employee=employee, date=today).first()
@@ -53,9 +88,17 @@ class CheckInView(APIView):
 
             if existing.check_out_time:
                 # Resuming shift
-                delta = timezone.now() - existing.check_out_time
-                existing.break_minutes += int(delta.total_seconds() / 60)
+                gap_delta = timezone.now() - existing.check_out_time
+                gap_mins = int(gap_delta.total_seconds() / 60)
+                
+                existing.break_minutes += gap_mins
                 existing.break_count += 1
+                
+                if existing.check_in_time:
+                    worked_delta = existing.check_out_time - existing.check_in_time
+                    existing.accumulated_gross_minutes += int(worked_delta.total_seconds() / 60) + gap_mins
+                
+                existing.check_in_time = timezone.now()
                 existing.check_out_time = None
                 existing.status = serializer.validated_data.get("status", "Present")
                 existing.save()
@@ -103,6 +146,7 @@ class CheckOutView(APIView):
             )
 
         employee = request.user.employee
+        process_midnight_splits(employee)
         today = timezone.localdate()
 
         attendance = Attendance.objects.filter(employee=employee, date=today).first()
@@ -140,6 +184,7 @@ class TodayAttendanceView(APIView):
             )
 
         employee = request.user.employee
+        process_midnight_splits(employee)
         today = timezone.localdate()
         attendance = Attendance.objects.filter(employee=employee, date=today).first()
 
@@ -165,6 +210,7 @@ class BreakView(APIView):
             )
 
         employee = request.user.employee
+        process_midnight_splits(employee)
         today = timezone.localdate()
         attendance = Attendance.objects.filter(employee=employee, date=today).first()
 
