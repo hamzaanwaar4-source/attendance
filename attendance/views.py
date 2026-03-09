@@ -594,8 +594,7 @@ class EmployeeDashboardStatsView(APIView):
                 "month": today.strftime("%B %Y"),
                 "days_this_month": present_count,
                 "hours_worked": f"{round(total_hours, 1)}h",
-                "total_breaks": total_breaks,
-                "total_break_time": f"{total_break_mins // 60}h {total_break_mins % 60}m" if total_break_mins > 0 else "0h",
+                "total_breaks": f"{total_break_mins // 60}h {total_break_mins % 60}m" if total_break_mins > 0 else "0h",
                 "avg_hours_per_day": f"{round(avg_hours, 1)}h"
             },
             "today": today_data,
