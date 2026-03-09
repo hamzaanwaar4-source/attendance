@@ -12,7 +12,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
         fields = [
             "id", "employee", "employee_name", "date",
             "check_in_time", "check_out_time",
-            "break_minutes", "break_count",
+            "break_start_time", "break_minutes", "break_count",
             "status", "hours_worked",
         ]
         read_only_fields = ["id"]
@@ -29,7 +29,7 @@ class CheckOutSerializer(serializers.Serializer):
 
 
 class BreakSerializer(serializers.Serializer):
-    minutes = serializers.IntegerField(min_value=1, max_value=120)
+    pass
 
 
 class AttendanceTodaySerializer(serializers.ModelSerializer):
@@ -39,7 +39,7 @@ class AttendanceTodaySerializer(serializers.ModelSerializer):
         model = Attendance
         fields = [
             "id", "date", "check_in_time", "check_out_time",
-            "break_minutes", "break_count", "status", "hours_worked",
+            "break_start_time", "break_minutes", "break_count", "status", "hours_worked",
         ]
 
 
@@ -52,7 +52,7 @@ class AttendanceHistorySerializer(serializers.ModelSerializer):
         fields = [
             "id", "date", "day_of_week",
             "check_in_time", "check_out_time",
-            "break_minutes", "break_count",
+            "break_start_time", "break_minutes", "break_count",
             "status", "hours_worked",
         ]
 
@@ -107,7 +107,7 @@ class AdminAttendanceOverviewSerializer(serializers.ModelSerializer):
             "id", "employee", "employee_name", "employee_id_display",
             "date", "day_of_week",
             "check_in_time", "check_out_time",
-            "break_minutes", "break_count",
+            "break_start_time", "break_minutes", "break_count",
             "status", "hours_worked",
         ]
 

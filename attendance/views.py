@@ -38,8 +38,18 @@ class CheckInView(APIView):
 
         existing = Attendance.objects.filter(employee=employee, date=today).first()
         if existing and existing.check_in_time:
+            if existing.break_start_time:
+                delta = timezone.now() - existing.break_start_time
+                existing.break_minutes += int(delta.total_seconds() / 60)
+                existing.break_start_time = None
+                existing.save()
+                return Response(
+                    AttendanceTodaySerializer(existing).data,
+                    status=status.HTTP_200_OK,
+                )
+            
             return Response(
-                {"detail": "Already checked in today."},
+                {"detail": "Already checked in today and not on a break."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -92,6 +102,11 @@ class CheckOutView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if attendance.break_start_time:
+            delta = timezone.now() - attendance.break_start_time
+            attendance.break_minutes += int(delta.total_seconds() / 60)
+            attendance.break_start_time = None
+
         attendance.check_out_time = timezone.now()
         attendance.save()
 
@@ -113,11 +128,12 @@ class TodayAttendanceView(APIView):
         attendance = Attendance.objects.filter(employee=employee, date=today).first()
 
         if not attendance:
-            data = {"checked_in": False, "date": str(today), "check_in_time": None, "check_out_time": None, "break_minutes": 0, "break_count": 0, "hours_worked": 0.0, "status": "Not checked in"}
+            data = {"checked_in": False, "on_break": False, "date": str(today), "check_in_time": None, "check_out_time": None, "break_start_time": None, "break_minutes": 0, "break_count": 0, "hours_worked": 0.0, "status": "Not checked in"}
             return Response(data)
-
+        
         data = AttendanceTodaySerializer(attendance).data
         data["checked_in"] = attendance.check_in_time is not None
+        data["on_break"] = attendance.break_start_time is not None
         return Response(data)
 
 
@@ -148,10 +164,16 @@ class BreakView(APIView):
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
+        if attendance.break_start_time:
+            return Response(
+                {"detail": "You are already on a break."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
         serializer = BreakSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        attendance.break_minutes += serializer.validated_data["minutes"]
+        attendance.break_start_time = timezone.now()
         attendance.break_count += 1
         attendance.save()
 

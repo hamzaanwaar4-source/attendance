@@ -1,5 +1,6 @@
 import uuid
 from django.db import models
+from django.utils import timezone
 
 from employees.models import Employee
 
@@ -21,6 +22,7 @@ class Attendance(models.Model):
     date = models.DateField()
     check_in_time = models.DateTimeField(null=True, blank=True)
     check_out_time = models.DateTimeField(null=True, blank=True)
+    break_start_time = models.DateTimeField(null=True, blank=True)
     break_minutes = models.PositiveIntegerField(default=0)
     break_count = models.PositiveIntegerField(default=0)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="Present")
@@ -35,12 +37,19 @@ class Attendance(models.Model):
 
     @property
     def hours_worked(self):
-        if self.check_in_time and self.check_out_time:
-            delta = self.check_out_time - self.check_in_time
-            total_minutes = delta.total_seconds() / 60
-            net_minutes = max(total_minutes - self.break_minutes, 0)
-            return round(net_minutes / 60, 1)
-        return 0.0
+        if not self.check_in_time:
+            return 0.0
+        
+        end_time = self.check_out_time or timezone.now()
+        delta = end_time - self.check_in_time
+        total_minutes = delta.total_seconds() / 60
+        
+        current_break_mins = 0
+        if self.break_start_time and not self.check_out_time:
+            current_break_mins = (timezone.now() - self.break_start_time).total_seconds() / 60
+            
+        net_minutes = max(total_minutes - self.break_minutes - current_break_mins, 0)
+        return round(net_minutes / 60, 1)
 
 
 class LeaveRequest(models.Model):
