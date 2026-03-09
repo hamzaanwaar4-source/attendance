@@ -343,11 +343,12 @@ class MonthlyAttendanceView(APIView):
         result_page = paginator.paginate_queryset(records, request, view=self)
         history_data = AttendanceHistorySerializer(result_page, many=True).data
 
+        present_count = records.filter(status="Present").count()
         data = {
             "period_days": days,
             "start_date": str(start_date),
             "end_date": str(today),
-            "working_days": f"{aggregates['total_records'] or 0} / {working_days_in_period}",
+            "working_days": f"{present_count} / {working_days_in_period}",
             "required_hours": f"{required_hours}h",
             "worked_hours": f"{round(total_hours, 1)}h",
             "remaining_hours": f"{round(remaining_hours, 1)}h",
@@ -542,7 +543,7 @@ class EmployeeDashboardStatsView(APIView):
             date__lte=today
         )
         
-        present_count = month_records.filter(status__in=["Present", "Late", "Half leave"]).count()
+        present_count = month_records.filter(status="Present").count()
         total_hours = sum(r.hours_worked for r in month_records)
         total_breaks = sum(r.break_count for r in month_records)
         

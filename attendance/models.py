@@ -10,9 +10,6 @@ class Attendance(models.Model):
         ("Present", "Present"),
         ("Absent", "Absent"),
         ("On Leave", "On Leave"),
-        ("remote", "Remote"),
-        ("Medical leave", "Medical Leave"),
-        ("Emergency", "Emergency"),
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
