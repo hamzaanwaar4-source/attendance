@@ -62,6 +62,39 @@ def process_midnight_splits(employee):
             status=open_att.status
         )
 
+def backfill_absent_days(employee, start_date, end_date):
+    if not employee: return
+    
+    join = employee.join_date or employee.created_at.date()
+    start = max(start_date, join)
+    
+    # Never mark today or the future as absent
+    today = timezone.localdate()
+    end = min(end_date, today - datetime.timedelta(days=1))
+    
+    if start > end:
+        return
+        
+    existing_dates = set(Attendance.objects.filter(
+        employee=employee,
+        date__gte=start,
+        date__lte=end
+    ).values_list("date", flat=True))
+    
+    missing_records = []
+    current = start
+    while current <= end:
+        if current.weekday() < 5 and current not in existing_dates:
+            missing_records.append(Attendance(
+                employee=employee,
+                date=current,
+                status="Absent"
+            ))
+        current += datetime.timedelta(days=1)
+        
+    if missing_records:
+        Attendance.objects.bulk_create(missing_records, ignore_conflicts=True)
+
 class CheckInView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -267,6 +300,8 @@ class MonthlyAttendanceView(APIView):
 
         today = timezone.localdate()
         start_date = today - timezone.timedelta(days=days)
+        
+        backfill_absent_days(employee, start_date, today)
 
         records = Attendance.objects.filter(
             employee=employee, date__gte=start_date, date__lte=today
@@ -339,6 +374,8 @@ class EmployeeAttendanceHistoryView(APIView):
 
         today = timezone.localdate()
         start_date = today - timezone.timedelta(days=days)
+        
+        backfill_absent_days(target_employee, start_date, today)
 
         records = Attendance.objects.filter(
             employee=target_employee, date__gte=start_date, date__lte=today
