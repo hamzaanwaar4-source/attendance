@@ -163,9 +163,10 @@ class CheckOutView(APIView):
             )
 
         if attendance.break_start_time:
-            delta = timezone.now() - attendance.break_start_time
-            attendance.break_minutes += int(delta.total_seconds() / 60)
-            attendance.break_start_time = None
+            return Response(
+                {"detail": "Oh, wait, you're still on a break."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         attendance.check_out_time = timezone.now()
         attendance.save()
