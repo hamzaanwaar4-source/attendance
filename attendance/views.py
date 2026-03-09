@@ -546,7 +546,13 @@ class EmployeeDashboardStatsView(APIView):
         present_count = month_records.filter(status="Present").count()
         total_hours = sum(r.hours_worked for r in month_records)
         total_breaks = sum(r.break_count for r in month_records)
+        total_break_mins = sum(r.break_minutes for r in month_records)
         
+        today_att = month_records.filter(date=today).first()
+        if today_att and today_att.break_start_time and not today_att.check_out_time:
+            current_break_delta = (timezone.now() - today_att.break_start_time).total_seconds() / 60
+            total_break_mins += int(current_break_delta)
+
         avg_hours = 0.0
         if present_count > 0:
             avg_hours = total_hours / present_count
@@ -589,6 +595,7 @@ class EmployeeDashboardStatsView(APIView):
                 "days_this_month": present_count,
                 "hours_worked": f"{round(total_hours, 1)}h",
                 "total_breaks": total_breaks,
+                "total_break_time": f"{total_break_mins // 60}h {total_break_mins % 60}m" if total_break_mins > 0 else "0h",
                 "avg_hours_per_day": f"{round(avg_hours, 1)}h"
             },
             "today": today_data,
