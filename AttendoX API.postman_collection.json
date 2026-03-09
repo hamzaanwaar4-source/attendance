@@ -972,7 +972,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"minutes\": 30\n}"
+              "raw": "{}"
             },
             "url": {
               "raw": "{{base_url}}/attendance/break/",

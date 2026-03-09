@@ -48,6 +48,22 @@ class CheckInView(APIView):
                     status=status.HTTP_200_OK,
                 )
             
+            serializer = CheckInSerializer(data=request.data)
+            serializer.is_valid(raise_exception=True)
+
+            if existing.check_out_time:
+                # Resuming shift
+                delta = timezone.now() - existing.check_out_time
+                existing.break_minutes += int(delta.total_seconds() / 60)
+                existing.break_count += 1
+                existing.check_out_time = None
+                existing.status = serializer.validated_data.get("status", "Present")
+                existing.save()
+                return Response(
+                    AttendanceTodaySerializer(existing).data,
+                    status=status.HTTP_200_OK,
+                )
+
             return Response(
                 {"detail": "Already checked in today and not on a break."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -160,7 +176,7 @@ class BreakView(APIView):
 
         if attendance.check_out_time:
             return Response(
-                {"detail": "Cannot take a break after checking out."},
+                {"detail": "Cannot take a break after checking out. Please resume your shift first by checking in."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
