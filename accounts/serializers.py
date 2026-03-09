@@ -32,16 +32,17 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
         user = self.user
         if hasattr(user, "employee"):
             role = user.employee.role
-            data["role"] = role
             # Determine dashboard route based on role
             admin_roles = ["CEO", "CTO", "COO", "Director", "HOD", "PM"]
             if user.is_superuser or role in admin_roles:
-                data["dashboard_route"] = "/admin-dashboard"
+                data["role"] = "Admin"
+                data["dashboard_route"] = "/admin/dashboard"
             else:
-                data["dashboard_route"] = "/employee-dashboard"
+                data["role"] = "Employee"
+                data["dashboard_route"] = "/employee/dashboard"
         elif user.is_superuser:
-            data["role"] = "Superadmin"
-            data["dashboard_route"] = "/admin-dashboard"
+            data["role"] = "Admin"
+            data["dashboard_route"] = "/admin/dashboard"
             
         return data
 
@@ -49,10 +50,16 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
     def get_token(cls, user):
         token = super().get_token(user)
         token["email"] = user.email
+        admin_roles = ["CEO", "CTO", "COO", "Director", "HOD", "PM"]
         if hasattr(user, "employee"):
             token["employee_id"] = str(user.employee.id)
-            token["role"] = user.employee.role
             token["full_name"] = user.employee.full_name
+            if user.is_superuser or user.employee.role in admin_roles:
+                token["role"] = "Admin"
+            else:
+                token["role"] = "Employee"
+        elif user.is_superuser:
+            token["role"] = "Admin"
         return token
 
 
