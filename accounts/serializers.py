@@ -28,22 +28,6 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
             )
 
         data = super().validate(attrs)
-        
-        user = self.user
-        if hasattr(user, "employee"):
-            role = user.employee.role
-            # Determine dashboard route based on role
-            admin_roles = ["CEO", "CTO", "COO", "Director", "HOD", "PM"]
-            if user.is_superuser or role in admin_roles:
-                data["role"] = "Admin"
-                data["dashboard_route"] = "/admin/dashboard"
-            else:
-                data["role"] = "Employee"
-                data["dashboard_route"] = "/employee/dashboard"
-        elif user.is_superuser:
-            data["role"] = "Admin"
-            data["dashboard_route"] = "/admin/dashboard"
-            
         return data
 
     @classmethod
