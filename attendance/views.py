@@ -530,3 +530,69 @@ class LeaveBalanceView(APIView):
 
         balances = LeaveBalance.objects.filter(employee=employee)
         return Response(LeaveBalanceSerializer(balances, many=True).data)
+class EmployeeDashboardStatsView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        if not hasattr(request.user, "employee"):
+            return Response(
+                {"detail": "No employee profile linked."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        employee = request.user.employee
+        process_midnight_splits(employee)
+        today = timezone.localdate()
+        
+        # Monthly Stats (Current Month)
+        first_day = today.replace(day=1)
+        month_records = Attendance.objects.filter(
+            employee=employee, 
+            date__gte=first_day, 
+            date__lte=today
+        )
+        
+        present_count = month_records.filter(status__in=["Present", "Late", "Half leave"]).count()
+        total_hours = sum(r.hours_worked for r in month_records)
+        total_breaks = sum(r.break_count for r in month_records)
+        
+        avg_hours = 0.0
+        if present_count > 0:
+            avg_hours = total_hours / present_count
+
+        # Recent Attendance (Last 5 records)
+        recent_records = Attendance.objects.filter(
+            employee=employee, 
+            date__lte=today
+        ).order_by("-date")[:5]
+        
+        # Today's Status
+        today_att = month_records.filter(date=today).first()
+        today_data = None
+        if today_att:
+            today_data = AttendanceTodaySerializer(today_att).data
+            today_data["checked_in"] = today_att.check_in_time is not None
+            today_data["on_break"] = today_att.break_start_time is not None
+
+        data = {
+            "profile": {
+                "full_name": employee.full_name,
+                "job_title": employee.job_title,
+                "department": employee.department.name if employee.department else None,
+                "employee_id": employee.employee_id_display,
+                "email": employee.official_email,
+                "contact": employee.personal_phone,
+                "joined": str(employee.join_date) if employee.join_date else None,
+                "manager": employee.reports_to.full_name if employee.reports_to else None,
+                "profile_picture": request.build_absolute_uri(employee.profile_picture.url) if employee.profile_picture else None
+            },
+            "stats": {
+                "days_this_month": present_count,
+                "hours_worked": f"{round(total_hours, 1)}h",
+                "total_breaks": total_breaks,
+                "avg_hours_per_day": f"{round(avg_hours, 1)}h"
+            },
+            "today": today_data,
+            "recent_attendance": AttendanceHistorySerializer(recent_records, many=True).data
+        }
+        return Response(data)

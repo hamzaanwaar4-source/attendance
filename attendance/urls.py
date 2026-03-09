@@ -11,6 +11,7 @@ from attendance.views import (
     LeaveRequestDetailView,
     LeaveRequestApprovalView,
     LeaveBalanceView,
+    EmployeeDashboardStatsView,
 )
 
 urlpatterns = [
@@ -24,4 +25,5 @@ urlpatterns = [
     path("leave-requests/<uuid:pk>/", LeaveRequestDetailView.as_view(), name="leave-request-detail"),
     path("leave-requests/<uuid:pk>/approve/",LeaveRequestApprovalView.as_view(),name="leave-request-approve",),
     path("leave-balance/", LeaveBalanceView.as_view(), name="leave-balance"),
+    path("dashboard-stats/", EmployeeDashboardStatsView.as_view(), name="employee-dashboard-stats"),
 ]

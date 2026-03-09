@@ -996,6 +996,25 @@
             "name": "Attendance",
             "item": [
                 {
+                    "name": "My Dashboard Stats",
+                    "request": {
+                        "method": "GET",
+                        "header": [],
+                        "url": {
+                            "raw": "{{base_url}}/attendance/dashboard-stats/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "attendance",
+                                "dashboard-stats",
+                                ""
+                            ]
+                        },
+                        "description": "Fetch all stats, profile info, and recent history for the 'My Dashboard' section."
+                    }
+                },
+                {
                     "name": "Live Attendance Flow Tester",
                     "description": "Run these in order to see the real-time tracker work.",
                     "item": [
