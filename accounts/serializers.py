@@ -27,7 +27,23 @@ class CustomTokenObtainPairSerializer(TokenObtainPairSerializer):
                 {"detail": "This account has been deactivated. Contact your administrator."}
             )
 
-        return super().validate(attrs)
+        data = super().validate(attrs)
+        
+        user = self.user
+        if hasattr(user, "employee"):
+            role = user.employee.role
+            data["role"] = role
+            # Determine dashboard route based on role
+            admin_roles = ["CEO", "CTO", "COO", "Director", "HOD", "PM"]
+            if user.is_superuser or role in admin_roles:
+                data["dashboard_route"] = "/admin-dashboard"
+            else:
+                data["dashboard_route"] = "/employee-dashboard"
+        elif user.is_superuser:
+            data["role"] = "Superadmin"
+            data["dashboard_route"] = "/admin-dashboard"
+            
+        return data
 
     @classmethod
     def get_token(cls, user):
