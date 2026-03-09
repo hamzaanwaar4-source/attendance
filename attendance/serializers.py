@@ -34,18 +34,23 @@ class BreakSerializer(serializers.Serializer):
 
 class AttendanceTodaySerializer(serializers.ModelSerializer):
     hours_worked = serializers.ReadOnlyField()
+    required_hours = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
         fields = [
             "id", "date", "check_in_time", "check_out_time",
-            "break_start_time", "break_minutes", "break_count", "status", "hours_worked",
+            "break_start_time", "break_minutes", "break_count", "status", "hours_worked", "required_hours"
         ]
+
+    def get_required_hours(self, obj):
+        return 8.0
 
 
 class AttendanceHistorySerializer(serializers.ModelSerializer):
     hours_worked = serializers.ReadOnlyField()
     day_of_week = serializers.SerializerMethodField()
+    required_hours = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
@@ -53,11 +58,14 @@ class AttendanceHistorySerializer(serializers.ModelSerializer):
             "id", "date", "day_of_week",
             "check_in_time", "check_out_time",
             "break_start_time", "break_minutes", "break_count",
-            "status", "hours_worked",
+            "status", "hours_worked", "required_hours"
         ]
 
     def get_day_of_week(self, obj):
         return obj.date.strftime("%A")
+
+    def get_required_hours(self, obj):
+        return 8.0
 
 
 class LeaveRequestSerializer(serializers.ModelSerializer):
@@ -100,6 +108,7 @@ class AdminAttendanceOverviewSerializer(serializers.ModelSerializer):
     employee_id_display = serializers.CharField(source="employee.employee_id_display", read_only=True)
     hours_worked = serializers.ReadOnlyField()
     day_of_week = serializers.SerializerMethodField()
+    required_hours = serializers.SerializerMethodField()
 
     class Meta:
         model = Attendance
@@ -108,8 +117,11 @@ class AdminAttendanceOverviewSerializer(serializers.ModelSerializer):
             "date", "day_of_week",
             "check_in_time", "check_out_time",
             "break_start_time", "break_minutes", "break_count",
-            "status", "hours_worked",
+            "status", "hours_worked", "required_hours"
         ]
 
     def get_day_of_week(self, obj):
         return obj.date.strftime("%A")
+
+    def get_required_hours(self, obj):
+        return 8.0

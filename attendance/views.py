@@ -2,6 +2,7 @@ from django.db import transaction
 from django.db.models import Sum, Count, Avg
 from django.utils import timezone
 from rest_framework import status, generics
+from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,6 +23,10 @@ from attendance.serializers import (
 )
 import datetime
 from employees.models import Employee
+
+class AttendanceHistoryPagination(CursorPagination):
+    page_size = 10
+    ordering = "-date"
 
 def process_midnight_splits(employee):
     open_att = Attendance.objects.filter(employee=employee, check_out_time__isnull=True).order_by('date').first()
@@ -254,11 +259,11 @@ class MonthlyAttendanceView(APIView):
             )
 
         employee = request.user.employee
-        period = request.query_params.get("period", "7")
+        period = request.query_params.get("period", "90")
         try:
             days = int(period)
         except ValueError:
-            days = 7
+            days = 90
 
         today = timezone.localdate()
         start_date = today - timezone.timedelta(days=days)
@@ -267,17 +272,19 @@ class MonthlyAttendanceView(APIView):
             employee=employee, date__gte=start_date, date__lte=today
         ).order_by("-date")
 
-        history_data = AttendanceHistorySerializer(records, many=True).data
+        total_hours = sum(r.hours_worked for r in records)
+        working_days_in_period = self._count_working_days(start_date, today)
+        required_hours = working_days_in_period * 8
+        remaining_hours = max(required_hours - total_hours, 0)
 
         aggregates = records.aggregate(
             total_break_minutes=Sum("break_minutes"),
             total_records=Count("id"),
         )
 
-        total_hours = sum(r.hours_worked for r in records)
-        working_days_in_period = self._count_working_days(start_date, today)
-        required_hours = working_days_in_period * 8
-        remaining_hours = max(required_hours - total_hours, 0)
+        paginator = AttendanceHistoryPagination()
+        result_page = paginator.paginate_queryset(records, request, view=self)
+        history_data = AttendanceHistorySerializer(result_page, many=True).data
 
         data = {
             "period_days": days,
@@ -288,6 +295,8 @@ class MonthlyAttendanceView(APIView):
             "worked_hours": f"{round(total_hours, 1)}h",
             "remaining_hours": f"{round(remaining_hours, 1)}h",
             "total_breaks": aggregates["total_break_minutes"] or 0,
+            "next": paginator.get_next_link(),
+            "previous": paginator.get_previous_link(),
             "records": history_data,
         }
         return Response(data)
@@ -322,11 +331,11 @@ class EmployeeAttendanceHistoryView(APIView):
                 if requesting_employee.role not in ("CEO", "CTO", "COO", "Director", "HOD", "PM"):
                     return Response({"detail": "Forbidden."}, status=status.HTTP_403_FORBIDDEN)
 
-        period = request.query_params.get("period", "30")
+        period = request.query_params.get("period", "90")
         try:
             days = int(period)
         except ValueError:
-            days = 30
+            days = 90
 
         today = timezone.localdate()
         start_date = today - timezone.timedelta(days=days)
@@ -335,11 +344,13 @@ class EmployeeAttendanceHistoryView(APIView):
             employee=target_employee, date__gte=start_date, date__lte=today
         ).order_by("-date")
 
-        history_data = AdminAttendanceOverviewSerializer(records, many=True).data
-
         total_hours = sum(r.hours_worked for r in records)
         total_breaks = records.aggregate(total=Sum("break_minutes"))["total"] or 0
         avg_hours = round(total_hours / records.count(), 1) if records.count() else 0.0
+
+        paginator = AttendanceHistoryPagination()
+        result_page = paginator.paginate_queryset(records, request, view=self)
+        history_data = AdminAttendanceOverviewSerializer(result_page, many=True).data
 
         data = {
             "employee_id": str(target_employee.id),
@@ -349,6 +360,8 @@ class EmployeeAttendanceHistoryView(APIView):
             "hours_worked": f"{round(total_hours, 1)}h",
             "total_breaks": total_breaks,
             "avg_hours_per_day": f"{avg_hours}h",
+            "next": paginator.get_next_link(),
+            "previous": paginator.get_previous_link(),
             "records": history_data,
         }
         return Response(data)
