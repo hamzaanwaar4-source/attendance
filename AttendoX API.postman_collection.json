@@ -435,15 +435,61 @@
                     ],
                     "request": {
                         "method": "POST",
-                        "header": [
-                            {
-                                "key": "Content-Type",
-                                "value": "application/json"
-                            }
-                        ],
+                        "header": [],
                         "body": {
-                            "mode": "raw",
-                            "raw": "{\n    \"official_email\": \"john.doe@corp.com\",\n    \"full_name\": \"John Doe\",\n    \"role\": \"Employee\",\n    \"department\": \"{{department_id}}\",\n    \"job_title\": \"Software Developer\",\n    \"employment_status\": \"Active\",\n    \"join_date\": \"2026-01-15\",\n    \"gender\": \"Male\",\n    \"password\": \"SecurePass123!\"\n}"
+                            "mode": "formdata",
+                            "formdata": [
+                                {
+                                    "key": "official_email",
+                                    "value": "test_user@corp.com",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "full_name",
+                                    "value": "Test User",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "role",
+                                    "value": "Employee",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "department",
+                                    "value": "{{department_id}}",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "job_title",
+                                    "value": "Software Developer",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "employment_status",
+                                    "value": "Active",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "join_date",
+                                    "value": "2026-01-15",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "gender",
+                                    "value": "Male",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "password",
+                                    "value": "SecurePass123!",
+                                    "type": "text"
+                                },
+                                {
+                                    "key": "profile_picture",
+                                    "type": "file",
+                                    "src": "/path/to/image.jpg"
+                                }
+                            ]
                         },
                         "url": {
                             "raw": "{{base_url}}/employees/",
@@ -752,6 +798,34 @@
                             ]
                         },
                         "description": "Upload a new profile picture for the logged-in employee."
+                    }
+                },
+                {
+                    "name": "Edit My Profile (Admin Only)",
+                    "request": {
+                        "method": "PATCH",
+                        "body": {
+                            "mode": "raw",
+                            "raw": "{\n    \"full_name\": \"Modified Name Attempt\"\n}",
+                            "options": {
+                                "raw": {
+                                    "language": "json"
+                                }
+                            }
+                        },
+                        "url": {
+                            "raw": "{{base_url}}/employees/{{employee_id}}/profile/",
+                            "host": [
+                                "{{base_url}}"
+                            ],
+                            "path": [
+                                "employees",
+                                "{{employee_id}}",
+                                "profile",
+                                ""
+                            ]
+                        },
+                        "description": "Attempt to update profile. This will return 403 Forbidden for regular employees."
                     }
                 }
             ]

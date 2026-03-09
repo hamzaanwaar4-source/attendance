@@ -233,6 +233,13 @@ class EmployeeProfileView(generics.RetrieveUpdateAPIView):
     permission_classes = [IsAuthenticated, IsOwnerOrSuperior]
     lookup_field = "pk"
 
+    def get_permissions(self):
+        # Allow GET for both Owner and Admin
+        if self.request.method in ["GET", "HEAD", "OPTIONS"]:
+            return [IsAuthenticated(), IsOwnerOrSuperior()]
+        # Allow PUT/PATCH only for Admin/HOD
+        return [IsAuthenticated(), IsAdminOrHOD()]
+
 class ProfilePictureUpdateView(APIView):
     permission_classes = [IsAuthenticated]
     parser_classes = [MultiPartParser, FormParser]
