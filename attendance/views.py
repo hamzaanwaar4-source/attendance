@@ -153,19 +153,26 @@ class CheckInView(APIView):
         serializer = CheckInSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
+        now = timezone.now()
+        local_now = timezone.localtime(now)
+        late_threshold = local_now.replace(hour=9, minute=15, second=0, microsecond=0)
+        
+        status_val = serializer.validated_data.get("status", "Present")
+        if local_now > late_threshold and status_val == "Present":
+            status_val = "Late"
+
         if existing:
-            existing.check_in_time = timezone.now()
-            existing.status = serializer.validated_data.get("status", "Present")
+            existing.check_in_time = now
+            existing.status = status_val
             existing.save()
             attendance = existing
         else:
             attendance = Attendance.objects.create(
                 employee=employee,
                 date=today,
-                check_in_time=timezone.now(),
-                status=serializer.validated_data.get("status", "Present"),
+                check_in_time=now,
+                status=status_val
             )
-
         return Response(
             AttendanceTodaySerializer(attendance).data,
             status=status.HTTP_201_CREATED,
@@ -207,6 +214,11 @@ class CheckOutView(APIView):
             )
 
         attendance.check_out_time = timezone.now()
+        
+        # Auto-set Half Day status if worked < 4 hours and currently marked as Present/Late
+        if attendance.hours_worked < 4.0 and attendance.status in ["Present", "Late"]:
+            attendance.status = "Half leave"
+            
         attendance.save()
 
         return Response(AttendanceTodaySerializer(attendance).data)
@@ -228,7 +240,27 @@ class TodayAttendanceView(APIView):
         attendance = Attendance.objects.filter(employee=employee, date=today).first()
 
         if not attendance:
-            data = {"checked_in": False, "on_break": False, "date": str(today), "check_in_time": None, "check_out_time": None, "break_start_time": None, "break_minutes": 0, "break_count": 0, "hours_worked": 0.0, "status": "Not checked in"}
+            on_leave = LeaveRequest.objects.filter(
+                employee=employee, 
+                status="Approved", 
+                start_date__lte=today, 
+                end_date__gte=today
+            ).exists()
+            
+            status_text = "On Leave" if on_leave else "Not checked in"
+            
+            data = {
+                "checked_in": False, 
+                "on_break": False, 
+                "date": str(today), 
+                "check_in_time": None, 
+                "check_out_time": None, 
+                "break_start_time": None, 
+                "break_minutes": 0, 
+                "break_count": 0, 
+                "hours_worked": 0.0, 
+                "status": status_text
+            }
             return Response(data)
         
         data = AttendanceTodaySerializer(attendance).data

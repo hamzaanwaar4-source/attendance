@@ -8,6 +8,7 @@ from rest_framework.pagination import CursorPagination
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
 
 from accounts.permissions import IsAdminOrHOD, IsOwnerOrSuperior, CanViewCompensation
 from attendance.models import Attendance, LeaveRequest
@@ -182,6 +183,7 @@ class EmployeeListView(APIView):
 
     def post(self, request):
         IsAdminOrHOD().has_permission(request, self)
+        # Pass request.FILES explicitly to ensure profile_picture is captured
         serializer = EmployeeCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -230,6 +232,26 @@ class EmployeeProfileView(generics.RetrieveUpdateAPIView):
     serializer_class = EmployeeProfileSerializer
     permission_classes = [IsAuthenticated, IsOwnerOrSuperior]
     lookup_field = "pk"
+
+class ProfilePictureUpdateView(APIView):
+    permission_classes = [IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser]
+
+    def post(self, request):
+        if not hasattr(request.user, "employee"):
+            return Response({"detail": "Employee profile required."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        employee = request.user.employee
+        if "profile_picture" not in request.FILES:
+            return Response({"detail": "No profile_picture file provided."}, status=status.HTTP_400_BAD_REQUEST)
+        
+        employee.profile_picture = request.FILES["profile_picture"]
+        employee.save()
+        
+        return Response({
+            "detail": "Profile picture updated successfully.",
+            "profile_picture": request.build_absolute_uri(employee.profile_picture.url) if employee.profile_picture else None
+        })
 
 
 class CompensationView(generics.RetrieveUpdateAPIView):
