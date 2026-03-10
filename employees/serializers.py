@@ -27,6 +27,8 @@ class EmployeeListSerializer(serializers.ModelSerializer):
     batch_name = serializers.CharField(source="batch.name", read_only=True, default=None)
     reports_to_name = serializers.CharField(source="reports_to.full_name", read_only=True, default=None)
     employee_id_display = serializers.ReadOnlyField()
+    profile_picture = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Employee
@@ -37,6 +39,14 @@ class EmployeeListSerializer(serializers.ModelSerializer):
             "reports_to", "reports_to_name", "profile_picture",
         ]
 
+
+    def get_profile_picture(self, obj):
+        if not obj.profile_picture:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.profile_picture.url)
+        return obj.profile_picture.url
 
 class EmployeeCreateSerializer(serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=True)
@@ -85,6 +95,8 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
     batch_name = serializers.CharField(source="batch.name", read_only=True, default=None)
     reports_to_name = serializers.CharField(source="reports_to.full_name", read_only=True, default=None)
     employee_id_display = serializers.ReadOnlyField()
+    profile_picture = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Employee
@@ -104,11 +116,21 @@ class EmployeeDetailSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "employee_id_display", "created_at", "updated_at"]
 
 
+    def get_profile_picture(self, obj):
+        if not obj.profile_picture:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.profile_picture.url)
+        return obj.profile_picture.url
+
 class EmployeeProfileSerializer(serializers.ModelSerializer):
     department_name = serializers.CharField(source="department.name", read_only=True, default=None)
     batch_name = serializers.CharField(source="batch.name", read_only=True, default=None)
     reports_to_name = serializers.CharField(source="reports_to.full_name", read_only=True, default=None)
     employee_id_display = serializers.ReadOnlyField()
+    profile_picture = serializers.SerializerMethodField()
+
 
     class Meta:
         model = Employee
@@ -129,6 +151,14 @@ class EmployeeProfileSerializer(serializers.ModelSerializer):
             "job_title", "employment_status", "join_date", "exit_date",
         ]
 
+
+    def get_profile_picture(self, obj):
+        if not obj.profile_picture:
+            return None
+        request = self.context.get("request")
+        if request:
+            return request.build_absolute_uri(obj.profile_picture.url)
+        return obj.profile_picture.url
 
 class EmployeeUpdateSerializer(serializers.ModelSerializer):
     class Meta:
