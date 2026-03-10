@@ -85,14 +85,25 @@ def backfill_absent_days(employee, start_date, end_date):
         date__lte=end
     ).values_list("date", flat=True))
     
+    # Get approved leaves for this period
+    approved_leaves = LeaveRequest.objects.filter(
+        employee=employee,
+        status="Approved",
+        start_date__lte=end,
+        end_date__gte=start
+    )
+    
     missing_records = []
     current = start
     while current <= end:
         if current.weekday() < 5 and current not in existing_dates:
+            # Check if this date falls within any approved leave
+            is_on_leave = any(leave.start_date <= current <= leave.end_date for leave in approved_leaves)
+            
             missing_records.append(Attendance(
                 employee=employee,
                 date=current,
-                status="Absent"
+                status="On Leave" if is_on_leave else "Absent"
             ))
         current += datetime.timedelta(days=1)
         
