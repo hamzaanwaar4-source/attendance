@@ -493,6 +493,22 @@ class LeaveRequestApprovalView(APIView):
             balance.remaining_leaves = max(balance.remaining_leaves - leave_days, 0)
             balance.save()
 
+            # Create 'On Leave' Attendance records for each day
+            attendance_records = []
+            curr = leave_request.start_date
+            while curr <= leave_request.end_date:
+                # Only create if no attendance record already exists for this date
+                if not Attendance.objects.filter(employee=leave_request.employee, date=curr).exists():
+                    attendance_records.append(Attendance(
+                        employee=leave_request.employee,
+                        date=curr,
+                        status="On Leave"
+                    ))
+                curr += datetime.timedelta(days=1)
+            
+            if attendance_records:
+                Attendance.objects.bulk_create(attendance_records)
+
         return Response(LeaveRequestSerializer(leave_request).data)
 
 
